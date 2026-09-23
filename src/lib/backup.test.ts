@@ -3,7 +3,7 @@ import { backupFilename, createBackup, isValidCooldown, parseBackup } from './ba
 import type { Dish } from './types';
 
 const dishes: Dish[] = [
-  { id: 7, name: 'Gulasch', categories: ['beef', 'pork'], lastCooked: 1_700_000_000_000 },
+  { id: 7, name: 'Gulasch', categories: ['beef', 'fish'], lastCooked: 1_700_000_000_000 },
   { id: 9, name: 'Käsespätzle', categories: ['vegetarian'], lastCooked: null },
 ];
 
@@ -18,7 +18,7 @@ describe('createBackup / parseBackup', () => {
     if (!parsed.ok) return;
     expect(parsed.data.settings).toEqual({ cooldownDays: 4 });
     expect(parsed.data.dishes).toEqual([
-      { name: 'Gulasch', categories: ['beef', 'pork'], lastCooked: 1_700_000_000_000 },
+      { name: 'Gulasch', categories: ['beef', 'fish'], lastCooked: 1_700_000_000_000 },
       { name: 'Käsespätzle', categories: ['vegetarian'], lastCooked: null },
     ]);
     expect(parsed.data.exportedAt).toBe('2026-09-23T00:00:00.000Z');
@@ -40,32 +40,64 @@ describe('createBackup / parseBackup', () => {
   });
 });
 
-describe('parseBackup rejects bad files with a helpful message', () => {
-  const cases: [string, string, RegExp][] = [
-    ['not JSON', '{oops', /valid JSON/],
-    ['another app', JSON.stringify({ app: 'other', version: 1, dishes: [] }), /Dinner Picker export/],
-    ['a JSON array', '[]', /Dinner Picker export/],
-    ['a newer version', file({ version: 2 }), /newer version/],
-    ['no dish list', file({ dishes: 'nope' }), /no dish list/],
-    ['bad cooldown', file({ settings: { cooldownDays: -1 } }), /Cooldown/],
-    ['fractional cooldown', file({ settings: { cooldownDays: 2.5 } }), /Cooldown/],
-    ['a nameless dish', file({ dishes: [{ name: ' ', categories: ['fish'] }] }), /Dish #1 has no name/],
-    ['no categories', file({ dishes: [{ name: 'Soup', categories: [] }] }), /"Soup" has no categories/],
-    ['unknown category', file({ dishes: [{ name: 'Soup', categories: ['lamb'] }] }), /unknown category: "lamb"/],
-    ['bad lastCooked', file({ dishes: [{ name: 'Soup', categories: ['fish'], lastCooked: 'yesterday' }] }), /invalid cooked date/],
+describe('parseBackup rejects bad files with an error code', () => {
+  const cases: [string, string, object][] = [
+    ['not JSON', '{oops', { code: 'invalidJson' }],
+    ['another app', JSON.stringify({ app: 'other', version: 1, dishes: [] }), { code: 'notOurFile' }],
+    ['a JSON array', '[]', { code: 'notOurFile' }],
+    ['a newer version', file({ version: 2 }), { code: 'newerVersion' }],
+    ['no dish list', file({ dishes: 'nope' }), { code: 'noDishList' }],
+    ['bad cooldown', file({ settings: { cooldownDays: -1 } }), { code: 'badCooldown', max: 365 }],
+    ['fractional cooldown', file({ settings: { cooldownDays: 2.5 } }), { code: 'badCooldown', max: 365 }],
+    ['a nameless dish', file({ dishes: [{ name: ' ', categories: ['fish'] }] }), { code: 'nameMissing', index: 1 }],
+    ['no categories', file({ dishes: [{ name: 'Soup', categories: [] }] }), { code: 'noCategories', name: 'Soup' }],
+    [
+      'unknown category',
+      file({ dishes: [{ name: 'Soup', categories: ['lamb'] }] }),
+      { code: 'unknownCategory', name: 'Soup', value: 'lamb' },
+    ],
+    [
+      'bad lastCooked',
+      file({ dishes: [{ name: 'Soup', categories: ['fish'], lastCooked: 'yesterday' }] }),
+      { code: 'badCookedDate', name: 'Soup' },
+    ],
     [
       'duplicate names',
       file({ dishes: [{ name: 'Soup', categories: ['fish'] }, { name: 'soup', categories: ['beef'] }] }),
-      /appears more than once/,
+      { code: 'duplicateName', name: 'soup' },
     ],
   ];
-  for (const [label, text, msg] of cases) {
+  for (const [label, text, error] of cases) {
     it(label, () => {
-      const r = parseBackup(text);
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.error).toMatch(msg);
+      expect(parseBackup(text)).toEqual({ ok: false, error });
     });
   }
+});
+
+describe('importing a backup made before pork was removed', () => {
+  const old = file({
+    dishes: [
+      { name: 'Schnitzel', categories: ['pork'], lastCooked: 123 },
+      { name: 'Gulasch', categories: ['beef', 'pork'], lastCooked: null },
+      { name: 'Spanferkel', categories: ['pork'], lastCooked: null },
+    ],
+  });
+
+  it('converts known pork defaults, strips pork from mixed dishes, skips other pork-only dishes', () => {
+    const r = parseBackup(old);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.dishes).toEqual([
+      { name: 'Chicken Schnitzel', categories: ['chicken'], lastCooked: 123 },
+      { name: 'Gulasch', categories: ['beef'], lastCooked: null },
+    ]);
+    expect(r.skipped).toEqual(['Spanferkel']);
+  });
+
+  it('never produces "pork" in the output', () => {
+    const r = parseBackup(old);
+    expect(JSON.stringify(r)).not.toContain('"pork"');
+  });
 });
 
 describe('helpers', () => {

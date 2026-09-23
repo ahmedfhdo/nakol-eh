@@ -1,5 +1,7 @@
 // Pure, framework-independent helpers for the dish list. No DB access here,
-// so everything is unit-testable with plain data.
+// so everything is unit-testable with plain data. No user-facing text either:
+// functions return numbers / error codes, and i18n/ turns them into words.
+import type { Locale } from './locale';
 import { CATEGORIES, type Category, type Dish } from './types';
 
 export const MAX_NAME_LENGTH = 80;
@@ -11,21 +13,42 @@ export function matchesCategories(dish: Dish, selected: readonly Category[]): bo
   return selected.length === 0 || dish.categories.some((c) => selected.includes(c));
 }
 
-/** Lowercase + strip accents, so "kase" finds "Käsespätzle" and "hahnchen" finds "Hähnchen-Curry". */
+/**
+ * Loose form for search and duplicate checks.
+ * Latin: lowercase + strip accents ("kase" finds "Käsespätzle").
+ * Arabic: unify the spellings people mix freely in Egyptian writing —
+ * أ/إ/آ → ا, ة → ه, ى → ي — and drop tashkeel and tatweel,
+ * so "ملوخيه" finds "ملوخية" and "رز أصفر" finds "رز اصفر".
+ */
 export function normalize(s: string): string {
-  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  return s
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ـ/g, '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
- * Filter by search text and categories, sorted by name.
+ * Filter by search text and categories, sorted by name in the UI language's collation.
  * Sorting happens here (not via the DB index) because IndexedDB sorts by raw code
  * points, which would put "Käsespätzle" after "Tuna Pasta Bake".
  */
-export function filterDishes(dishes: readonly Dish[], query: string, selected: readonly Category[]): Dish[] {
+export function filterDishes(
+  dishes: readonly Dish[],
+  query: string,
+  selected: readonly Category[],
+  locale: Locale = 'en',
+): Dish[] {
   const q = normalize(query);
+  const collator = new Intl.Collator(locale);
   return dishes
     .filter((d) => matchesCategories(d, selected) && (q === '' || normalize(d.name).includes(q)))
-    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    .sort((a, b) => collator.compare(a.name, b.name));
 }
 
 /** Whole calendar days between two timestamps, in local time (not 24h blocks). */
@@ -37,29 +60,32 @@ export function daysBetween(from: number, to: number): number {
   return Math.round((startB - startA) / DAY_MS);
 }
 
-export function cookedLabel(lastCooked: number | null, now: number = Date.now()): string {
-  if (lastCooked === null) return 'Never cooked';
-  const days = daysBetween(lastCooked, now);
-  if (days <= 0) return 'Cooked today';
-  if (days === 1) return 'Cooked yesterday';
-  return `Cooked ${days} days ago`;
+/** Calendar days since cooked (never negative), or null if never cooked. */
+export function daysSinceCooked(lastCooked: number | null, now: number = Date.now()): number | null {
+  return lastCooked === null ? null : Math.max(0, daysBetween(lastCooked, now));
 }
 
-/** Deduplicate and put categories in canonical order (beef, pork, chicken, fish, vegetarian). */
+/** Deduplicate and put categories in canonical order. */
 export function normalizeCategories(cats: readonly Category[]): Category[] {
   return CATEGORIES.filter((c) => cats.includes(c));
 }
 
-/** Returns an error message, or null if the input is valid. */
+export type DishError =
+  | { code: 'nameRequired' }
+  | { code: 'nameTooLong'; max: number }
+  | { code: 'categoryRequired' }
+  | { code: 'duplicate'; name: string };
+
+/** Returns an error, or null if the input is valid. */
 export function validateDish(
   input: { id?: number; name: string; categories: readonly Category[] },
   existing: readonly Dish[],
-): string | null {
+): DishError | null {
   const name = input.name.trim();
-  if (name === '') return 'Please enter a name.';
-  if (name.length > MAX_NAME_LENGTH) return `Name is too long (max ${MAX_NAME_LENGTH} characters).`;
-  if (input.categories.length === 0) return 'Pick at least one category.';
+  if (name === '') return { code: 'nameRequired' };
+  if (name.length > MAX_NAME_LENGTH) return { code: 'nameTooLong', max: MAX_NAME_LENGTH };
+  if (input.categories.length === 0) return { code: 'categoryRequired' };
   const dup = existing.find((d) => d.id !== input.id && normalize(d.name) === normalize(name));
-  if (dup) return `"${dup.name}" is already in your list.`;
+  if (dup) return { code: 'duplicate', name: dup.name };
   return null;
 }

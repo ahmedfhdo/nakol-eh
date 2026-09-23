@@ -1,6 +1,8 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { DEFAULT_DISHES } from './defaultDishes';
 import { normalizeCategories } from './dishes';
+import { detectInitialLocale, type Locale } from './locale';
+import { removePorkFromList } from './removePork';
 import { DEFAULT_SETTINGS, type Category, type Dish, type Settings } from './types';
 
 // Settings are a single row. Keeping them in the same IndexedDB database (instead of
@@ -13,7 +15,11 @@ export class DinnerDB extends Dexie {
   dishes!: EntityTable<Dish, 'id'>;
   settings!: EntityTable<SettingsRow, 'id'>;
 
-  constructor(name = 'dinner-picker') {
+  /**
+   * @param seedLocale which default list to seed on first launch. A function, so it's
+   *   read at creation time (and tests can inject it).
+   */
+  constructor(name = 'dinner-picker', seedLocale: () => Locale = () => detectInitialLocale()) {
     super(name);
 
     // Schema v1. Only indexed fields are listed here; other fields are stored anyway.
@@ -24,19 +30,34 @@ export class DinnerDB extends Dexie {
       settings: 'id',
     });
 
+    // Schema v2: the pork category was removed. Same indexes; the upgrade function
+    // runs once for existing users, inside the upgrade transaction (all-or-nothing).
+    // New users skip it: `populate` below already seeds pork-free data.
+    this.version(2)
+      .stores({
+        dishes: '++id, name, *categories, lastCooked',
+        settings: 'id',
+      })
+      .upgrade(async (tx) => {
+        const table = tx.table('dishes');
+        const { kept, removed } = removePorkFromList(await table.toArray());
+        await table.bulkPut(kept);
+        await table.bulkDelete(removed.map((d) => d.id));
+      });
+
     // `populate` fires exactly once: when the database is created for the first time.
     // That is the spec's "first launch" — and because it runs inside the creating
     // transaction, a crash mid-seed can't leave a half-seeded database.
     // Deleting every dish later does NOT re-seed; the user's copy is theirs.
     this.on('populate', async (tx) => {
-      await tx.table('dishes').bulkAdd(defaultDishRows());
+      await tx.table('dishes').bulkAdd(defaultDishRows(seedLocale()));
       await tx.table('settings').put({ id: 'app', ...DEFAULT_SETTINGS });
     });
   }
 }
 
-export function defaultDishRows(): Dish[] {
-  return DEFAULT_DISHES.map((d) => ({
+export function defaultDishRows(locale: Locale): Dish[] {
+  return DEFAULT_DISHES[locale].map((d) => ({
     name: d.name,
     categories: [...d.categories],
     lastCooked: null,
@@ -125,10 +146,10 @@ export async function replaceAllData(
   });
 }
 
-/** Replace all dishes with the defaults. Settings (cooldown) are kept. */
-export async function restoreDefaultDishes(database: DinnerDB = db): Promise<void> {
+/** Replace all dishes with the defaults for `locale`. Settings (cooldown) are kept. */
+export async function restoreDefaultDishes(locale: Locale, database: DinnerDB = db): Promise<void> {
   await database.transaction('rw', database.dishes, async () => {
     await database.dishes.clear();
-    await database.dishes.bulkAdd(defaultDishRows());
+    await database.dishes.bulkAdd(defaultDishRows(locale));
   });
 }

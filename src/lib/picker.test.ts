@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DAY_MS, FALLBACK_NOTE, isInCooldown, pick, type PickInput } from './picker';
+import { DAY_MS, isInCooldown, pick, type PickInput } from './picker';
 import type { Dish } from './types';
 
 const NOW = new Date(2026, 8, 23, 18, 0).getTime();
@@ -32,7 +32,7 @@ function pickMany(base: PickInput, n: number, random = Math.random) {
 }
 
 describe('category filtering', () => {
-  const dishes = [dish(1, ['beef']), dish(2, ['fish']), dish(3, ['pork', 'fish']), dish(4, ['vegetarian'])];
+  const dishes = [dish(1, ['beef']), dish(2, ['fish']), dish(3, ['chicken', 'fish']), dish(4, ['vegetarian'])];
 
   it('no selection means all categories', () => {
     expect(new Set(pickMany(input({ dishes }), 4))).toEqual(new Set([1, 2, 3, 4]));
@@ -43,11 +43,11 @@ describe('category filtering', () => {
   });
 
   it('multi-category dishes match on any of their categories', () => {
-    expect(new Set(pickMany(input({ dishes, selected: ['pork'] }), 5))).toEqual(new Set([3]));
+    expect(new Set(pickMany(input({ dishes, selected: ['chicken'] }), 5))).toEqual(new Set([3]));
   });
 
   it('returns empty when nothing matches the categories', () => {
-    expect(pick(input({ dishes, selected: ['chicken'] }))).toEqual({ kind: 'empty' });
+    expect(pick(input({ dishes: dishes.filter((x) => x.id !== 3), selected: ['chicken'] }))).toEqual({ kind: 'empty' });
     expect(pick(input({ dishes: [] }))).toEqual({ kind: 'empty' });
   });
 });
@@ -151,7 +151,4 @@ describe('fallback', () => {
     expect(pick(input({ dishes, selected: ['fish', 'beef'] }))).toMatchObject({ kind: 'pick', dish: { id: 4 } });
   });
 
-  it('has the note text from the spec', () => {
-    expect(FALLBACK_NOTE).toBe("Everything here was cooked recently — here's the one from longest ago.");
-  });
 });

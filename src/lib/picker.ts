@@ -6,8 +6,6 @@ import type { Category, Dish } from './types';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const FALLBACK_NOTE = "Everything here was cooked recently — here's the one from longest ago.";
-
 export interface PickInput {
   dishes: readonly Dish[];
   selected: readonly Category[]; // empty = all categories

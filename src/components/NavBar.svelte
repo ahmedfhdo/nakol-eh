@@ -1,8 +1,9 @@
 <script lang="ts">
   import { router, routes, href } from '../lib/router.svelte';
+  import { i18n } from '../lib/i18n/index.svelte';
 </script>
 
-<nav aria-label="Main">
+<nav aria-label={i18n.m.nav.label}>
   {#each routes as r (r.id)}
     <a
       href={href(r.id)}
@@ -10,7 +11,7 @@
       aria-current={router.current === r.id ? 'page' : undefined}
     >
       <span class="icon" aria-hidden="true">{r.icon}</span>
-      <span class="label">{r.label}</span>
+      <span class="label">{i18n.m.nav[r.id]}</span>
     </a>
   {/each}
 </nav>

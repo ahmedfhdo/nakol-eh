@@ -6,15 +6,22 @@
   import Settings from './screens/Settings.svelte';
   import { router } from './lib/router.svelte';
   import { pwa } from './lib/pwa.svelte';
+  import { catalogs, i18n } from './lib/i18n/index.svelte';
+
+  // The header switch shows the language you'd switch TO, written in that language.
+  const other = $derived(i18n.locale === 'en' ? 'ar' : 'en');
 </script>
 
 <div class="app">
   <header>
-    <h1><img src="favicon.svg" alt="" width="24" height="24" /> Dinner Picker</h1>
+    <h1><img src="favicon.svg" alt="" width="24" height="24" /> {i18n.m.appTitle}</h1>
     <div class="header-right">
       {#if pwa.installEvent && !pwa.installed}
-        <button class="install" onclick={() => pwa.install()}>Install</button>
+        <button class="install" onclick={() => pwa.install()}>{i18n.m.pwa.install}</button>
       {/if}
+      <button class="lang secondary" lang={other} onclick={() => i18n.set(other)}>
+        {other === 'ar' ? 'عربي' : 'English'}
+      </button>
       <div class="nav-desktop"><NavBar /></div>
     </div>
   </header>
@@ -35,14 +42,14 @@
 <!-- App-wide notices. The update notice stays until acted on (duration 0). -->
 {#if pwa.needRefresh}
   <Snackbar
-    message="A new version is available."
-    actionLabel="Reload"
+    message={i18n.m.pwa.updateAvailable}
+    actionLabel={i18n.m.pwa.reload}
     onaction={() => pwa.applyUpdate()}
     ondismiss={() => (pwa.needRefresh = false)}
     duration={0}
   />
 {:else if pwa.offlineReady}
-  <Snackbar message="Ready to work offline." ondismiss={() => (pwa.offlineReady = false)} duration={3000} />
+  <Snackbar message={i18n.m.pwa.offlineReady} ondismiss={() => (pwa.offlineReady = false)} duration={3000} />
 {/if}
 
 <style>
@@ -77,10 +84,15 @@
     gap: 12px;
   }
 
-  .install {
+  .install,
+  .lang {
     padding: 6px 14px;
     border-radius: 999px;
     font-size: 0.9rem;
+  }
+
+  .lang {
+    font-weight: 500;
   }
 
   main {

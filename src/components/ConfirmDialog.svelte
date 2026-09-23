@@ -4,6 +4,7 @@
   let {
     title,
     confirmLabel,
+    cancelLabel,
     danger = false,
     onconfirm,
     oncancel,
@@ -11,6 +12,7 @@
   }: {
     title: string;
     confirmLabel: string;
+    cancelLabel: string;
     danger?: boolean;
     onconfirm: () => void | Promise<void>;
     oncancel: () => void;
@@ -43,7 +45,7 @@
     <div class="row">
       <!-- Cancel gets focus first: the safe choice for destructive actions. -->
       <!-- svelte-ignore a11y_autofocus -->
-      <button type="button" class="secondary" autofocus onclick={() => dialog.close()} disabled={busy}>Cancel</button>
+      <button type="button" class="secondary" autofocus onclick={() => dialog.close()} disabled={busy}>{cancelLabel}</button>
       <button type="button" class:danger onclick={confirm} disabled={busy}>{confirmLabel}</button>
     </div>
   </div>

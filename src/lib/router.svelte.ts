@@ -7,10 +7,11 @@
 
 export type Route = 'picker' | 'dishes' | 'settings';
 
-export const routes: { id: Route; label: string; icon: string }[] = [
-  { id: 'picker', label: 'Pick', icon: '🎲' },
-  { id: 'dishes', label: 'Dishes', icon: '📋' },
-  { id: 'settings', label: 'Settings', icon: '⚙️' },
+// Labels live in i18n (m.nav.<id>).
+export const routes: { id: Route; icon: string }[] = [
+  { id: 'picker', icon: '🎲' },
+  { id: 'dishes', icon: '📋' },
+  { id: 'settings', icon: '⚙️' },
 ];
 
 const DEFAULT_ROUTE: Route = 'picker';

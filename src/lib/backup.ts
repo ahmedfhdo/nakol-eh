@@ -1,7 +1,8 @@
 // Export/import file format. Pure: builds and validates plain objects; the DB
 // write and the file download/upload happen elsewhere.
 import { normalize, normalizeCategories, MAX_NAME_LENGTH } from './dishes';
-import { CATEGORIES, DEFAULT_SETTINGS, type Category, type Dish, type Settings } from './types';
+import { removePork } from './removePork';
+import { CATEGORIES, DEFAULT_SETTINGS, type Dish, type Settings } from './types';
 
 export const BACKUP_APP_ID = 'dinner-picker';
 export const BACKUP_VERSION = 1;
@@ -41,62 +42,88 @@ export function isValidCooldown(n: unknown): n is number {
   return typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= MAX_COOLDOWN_DAYS;
 }
 
-export type ParseResult = { ok: true; data: BackupFile } | { ok: false; error: string };
+export type BackupError =
+  | { code: 'invalidJson' }
+  | { code: 'notOurFile' }
+  | { code: 'newerVersion' }
+  | { code: 'noDishList' }
+  | { code: 'badCooldown'; max: number }
+  | { code: 'dishInvalid'; index: number }
+  | { code: 'nameMissing'; index: number }
+  | { code: 'nameTooLong'; index: number }
+  | { code: 'duplicateName'; name: string }
+  | { code: 'noCategories'; name: string }
+  | { code: 'unknownCategory'; name: string; value: string }
+  | { code: 'badCookedDate'; name: string };
+
+export type ParseResult =
+  | { ok: true; data: BackupFile; /** pork-only dishes from an old backup that were left out */ skipped: string[] }
+  | { ok: false; error: BackupError };
 
 /**
  * Validate an imported file. All-or-nothing: one bad dish rejects the whole file,
  * because import REPLACES the user's data and a silently half-imported list is
- * worse than a clear error.
+ * worse than a clear error. (Exception: "pork" from backups made before it was
+ * removed is migrated like the database was, and reported via `skipped`.)
  */
 export function parseBackup(text: string): ParseResult {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch {
-    return fail("This file isn't valid JSON.");
+    return fail({ code: 'invalidJson' });
   }
-  if (!isObject(raw) || raw.app !== BACKUP_APP_ID) {
-    return fail("This doesn't look like a Dinner Picker export.");
-  }
-  if (typeof raw.version !== 'number' || raw.version > BACKUP_VERSION) {
-    return fail('This file was made by a newer version of the app.');
-  }
-  if (!Array.isArray(raw.dishes)) return fail('The file has no dish list.');
+  if (!isObject(raw) || raw.app !== BACKUP_APP_ID) return fail({ code: 'notOurFile' });
+  if (typeof raw.version !== 'number' || raw.version > BACKUP_VERSION) return fail({ code: 'newerVersion' });
+  if (!Array.isArray(raw.dishes)) return fail({ code: 'noDishList' });
 
   // Settings are optional (lets you hand-write a file with just dishes).
   let settings: Settings = { ...DEFAULT_SETTINGS };
   if (raw.settings !== undefined) {
     if (!isObject(raw.settings) || !isValidCooldown(raw.settings.cooldownDays)) {
-      return fail(`Cooldown must be a whole number between 0 and ${MAX_COOLDOWN_DAYS}.`);
+      return fail({ code: 'badCooldown', max: MAX_COOLDOWN_DAYS });
     }
     settings = { cooldownDays: raw.settings.cooldownDays };
   }
 
+  // Names in the file, for the pork conversion's duplicate check.
+  const fileNames = new Set(raw.dishes.map((d) => (isObject(d) && typeof d.name === 'string' ? d.name.trim() : '')));
+
   const dishes: BackupDish[] = [];
+  const skipped: string[] = [];
   const names = new Set<string>();
   for (const [i, d] of raw.dishes.entries()) {
-    const where = `Dish #${i + 1}`;
-    if (!isObject(d)) return fail(`${where} is not valid.`);
-    const name = typeof d.name === 'string' ? d.name.trim() : '';
-    if (!name) return fail(`${where} has no name.`);
-    if (name.length > MAX_NAME_LENGTH) return fail(`${where} ("${name.slice(0, 20)}…") has a name that is too long.`);
-    if (names.has(normalize(name))) return fail(`"${name}" appears more than once.`);
-    names.add(normalize(name));
+    const index = i + 1;
+    if (!isObject(d)) return fail({ code: 'dishInvalid', index });
+    let name = typeof d.name === 'string' ? d.name.trim() : '';
+    if (!name) return fail({ code: 'nameMissing', index });
+    if (name.length > MAX_NAME_LENGTH) return fail({ code: 'nameTooLong', index });
 
-    if (!Array.isArray(d.categories) || d.categories.length === 0) return fail(`"${name}" has no categories.`);
-    const bad = d.categories.find((c) => !(CATEGORIES as readonly unknown[]).includes(c));
-    if (bad !== undefined) return fail(`"${name}" has an unknown category: ${JSON.stringify(bad)}.`);
+    if (!Array.isArray(d.categories) || d.categories.length === 0) return fail({ code: 'noCategories', name });
+    const bad = d.categories.find((c) => c !== 'pork' && !(CATEGORIES as readonly unknown[]).includes(c));
+    if (bad !== undefined) return fail({ code: 'unknownCategory', name, value: String(bad) });
+
+    const migrated = removePork({ name, categories: d.categories as string[] }, fileNames);
+    if (migrated === null) {
+      skipped.push(name);
+      continue;
+    }
+    name = migrated.name;
+
+    if (names.has(normalize(name))) return fail({ code: 'duplicateName', name });
+    names.add(normalize(name));
 
     const lastCooked = d.lastCooked ?? null;
     if (lastCooked !== null && !(typeof lastCooked === 'number' && Number.isFinite(lastCooked) && lastCooked >= 0)) {
-      return fail(`"${name}" has an invalid cooked date.`);
+      return fail({ code: 'badCookedDate', name });
     }
 
-    dishes.push({ name, categories: normalizeCategories(d.categories as Category[]), lastCooked });
+    dishes.push({ name, categories: normalizeCategories(migrated.categories), lastCooked });
   }
 
   return {
     ok: true,
+    skipped,
     data: {
       app: BACKUP_APP_ID,
       version: BACKUP_VERSION,
@@ -107,7 +134,7 @@ export function parseBackup(text: string): ParseResult {
   };
 }
 
-function fail(error: string): ParseResult {
+function fail(error: BackupError): ParseResult {
   return { ok: false, error };
 }
 

@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import CategoryChips from './CategoryChips.svelte';
   import { addDish, deleteDish, setLastCooked, updateDish } from '../lib/db';
-  import { cookedLabel, MAX_NAME_LENGTH, validateDish } from '../lib/dishes';
+  import { daysSinceCooked, MAX_NAME_LENGTH, validateDish, type DishError } from '../lib/dishes';
+  import { i18n } from '../lib/i18n/index.svelte';
   import type { Category, Dish } from '../lib/types';
 
   // `dish` null = adding a new dish. `allDishes` is used for the duplicate-name check.
@@ -17,7 +18,8 @@
   let categories = $state<Category[]>(dish ? [...dish.categories] : []);
   // svelte-ignore state_referenced_locally
   let lastCooked = $state(dish?.lastCooked ?? null);
-  let error = $state<string | null>(null);
+  // Stored as a code, not text, so it re-translates if the language changes.
+  let error = $state<DishError | 'saveFailed' | null>(null);
   let confirmingDelete = $state(false);
   let busy = $state(false);
 
@@ -33,7 +35,7 @@
       else await addDish({ name, categories });
       dialog.close();
     } catch (err) {
-      error = 'Could not save. Please try again.';
+      error = 'saveFailed';
       console.error(err);
     } finally {
       busy = false;
@@ -61,13 +63,16 @@
     <!-- When editing, focus the heading instead of the input: showModal() would otherwise
          focus the name field and pop up the phone keyboard for a quick "clear"/"delete". -->
     <!-- svelte-ignore a11y_autofocus -->
-    <h2 id="editor-title" tabindex="-1" autofocus={!!dish}>{dish ? 'Edit dish' : 'Add dish'}</h2>
+    <h2 id="editor-title" tabindex="-1" autofocus={!!dish}>
+      {dish ? i18n.m.editor.editTitle : i18n.m.editor.addTitle}
+    </h2>
 
     <label class="field">
-      <span>Name</span>
+      <span>{i18n.m.editor.name}</span>
       <!-- svelte-ignore a11y_autofocus -->
       <input
         type="text"
+        dir={name ? 'auto' : undefined}
         bind:value={name}
         maxlength={MAX_NAME_LENGTH}
         autocomplete="off"
@@ -77,39 +82,45 @@
     </label>
 
     <fieldset class="field">
-      <legend>Categories</legend>
-      <CategoryChips bind:selected={categories} label="Dish categories" />
+      <legend>{i18n.m.editor.categories}</legend>
+      <CategoryChips bind:selected={categories} label={i18n.m.editor.categoriesLabel} />
     </fieldset>
 
     {#if dish}
       <div class="cooked">
-        <span class="muted">{cookedLabel(lastCooked)}</span>
+        <span class="muted">{i18n.m.cooked(daysSinceCooked(lastCooked))}</span>
         {#if lastCooked !== null}
-          <button type="button" class="link" onclick={clearCooked}>Clear</button>
+          <button type="button" class="link" onclick={clearCooked}>{i18n.m.editor.clearCooked}</button>
         {/if}
       </div>
     {/if}
 
     {#if error}
-      <p class="error" role="alert">{error}</p>
+      <p class="error" role="alert">
+        {error === 'saveFailed' ? i18n.m.editor.saveFailed : i18n.m.editor.error(error)}
+      </p>
     {/if}
 
     {#if confirmingDelete}
       <div class="confirm" role="alert">
-        <p>Delete <strong>{dish?.name}</strong>? This can't be undone.</p>
+        <p>{i18n.m.editor.confirmDelete(dish?.name ?? '')}</p>
         <div class="row">
-          <button type="button" class="secondary" onclick={() => (confirmingDelete = false)}>Cancel</button>
-          <button type="button" class="danger" onclick={remove}>Delete</button>
+          <button type="button" class="secondary" onclick={() => (confirmingDelete = false)}>
+            {i18n.m.editor.cancel}
+          </button>
+          <button type="button" class="danger" onclick={remove}>{i18n.m.editor.delete}</button>
         </div>
       </div>
     {:else}
       <div class="row actions">
         {#if dish}
-          <button type="button" class="danger-outline" onclick={() => (confirmingDelete = true)}>Delete</button>
+          <button type="button" class="danger-outline" onclick={() => (confirmingDelete = true)}>
+            {i18n.m.editor.delete}
+          </button>
         {/if}
         <span class="spacer"></span>
-        <button type="button" class="secondary" onclick={() => dialog.close()}>Cancel</button>
-        <button type="submit" disabled={busy}>Save</button>
+        <button type="button" class="secondary" onclick={() => dialog.close()}>{i18n.m.editor.cancel}</button>
+        <button type="submit" disabled={busy}>{i18n.m.editor.save}</button>
       </div>
     {/if}
   </form>

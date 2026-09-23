@@ -1,10 +1,8 @@
 <script lang="ts">
-  import { CATEGORIES, CATEGORY_LABELS, type Category } from '../lib/types';
+  import { i18n } from '../lib/i18n/index.svelte';
+  import { CATEGORIES, CATEGORY_ICONS, type Category } from '../lib/types';
 
-  let {
-    selected = $bindable([]),
-    label = 'Categories',
-  }: { selected?: Category[]; label?: string } = $props();
+  let { selected = $bindable([]), label }: { selected?: Category[]; label: string } = $props();
 
   function toggle(c: Category) {
     selected = selected.includes(c) ? selected.filter((x) => x !== c) : [...selected, c];
@@ -20,8 +18,8 @@
       aria-pressed={selected.includes(c)}
       onclick={() => toggle(c)}
     >
-      <span aria-hidden="true">{CATEGORY_LABELS[c].icon}</span>
-      {CATEGORY_LABELS[c].label}
+      <span aria-hidden="true">{CATEGORY_ICONS[c]}</span>
+      {i18n.m.categories[c]}
     </button>
   {/each}
 </div>

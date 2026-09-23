@@ -2,9 +2,10 @@
   import CategoryChips from '../components/CategoryChips.svelte';
   import DishEditor from '../components/DishEditor.svelte';
   import { db } from '../lib/db';
-  import { cookedLabel, filterDishes } from '../lib/dishes';
+  import { daysSinceCooked, filterDishes } from '../lib/dishes';
+  import { i18n } from '../lib/i18n/index.svelte';
   import { live } from '../lib/live.svelte';
-  import { CATEGORY_LABELS, type Category, type Dish } from '../lib/types';
+  import { CATEGORY_ICONS, type Category, type Dish } from '../lib/types';
 
   // Load everything and filter in memory: a personal dish list is tens to
   // hundreds of rows, so this is instant and keeps the filter logic pure/testable.
@@ -15,47 +16,57 @@
   // null = editor closed, 'new' = adding, Dish = editing that dish
   let editing = $state<Dish | 'new' | null>(null);
 
-  const visible = $derived(dishes.current ? filterDishes(dishes.current, query, selected) : []);
+  const visible = $derived(dishes.current ? filterDishes(dishes.current, query, selected, i18n.locale) : []);
   const filtering = $derived(query.trim() !== '' || selected.length > 0);
 </script>
 
 <section>
   <div class="head">
-    <h2>Dishes</h2>
-    <button onclick={() => (editing = 'new')}>+ Add dish</button>
+    <h2>{i18n.m.dishes.title}</h2>
+    <button onclick={() => (editing = 'new')}>{i18n.m.dishes.add}</button>
   </div>
 
-  <input type="search" placeholder="Search dishes…" aria-label="Search dishes" bind:value={query} />
+  <!-- dir="auto" once there's text: a Latin search term in the Arabic UI (or vice versa) runs in its own
+       direction. Empty, it follows the page, so the Arabic placeholder sits on the right. -->
+  <input
+    type="search"
+    dir={query ? 'auto' : undefined}
+    placeholder={i18n.m.dishes.search}
+    aria-label={i18n.m.dishes.search}
+    bind:value={query}
+  />
 
-  <CategoryChips bind:selected label="Filter by category" />
+  <CategoryChips bind:selected label={i18n.m.dishes.filterLabel} />
 
   {#if dishes.current === undefined}
-    <p class="muted">Loading…</p>
+    <p class="muted">{i18n.m.dishes.loading}</p>
   {:else if dishes.current.length === 0}
     <div class="empty">
-      <p>You don't have any dishes yet.</p>
-      <button onclick={() => (editing = 'new')}>Add your first dish</button>
+      <p>{i18n.m.dishes.empty}</p>
+      <button onclick={() => (editing = 'new')}>{i18n.m.dishes.addFirst}</button>
     </div>
   {:else}
     <p class="muted count">
-      {#if filtering}{visible.length} of {dishes.current.length} dishes{:else}{dishes.current.length} dishes{/if}
+      {filtering
+        ? i18n.m.dishes.countFiltered(visible.length, dishes.current.length)
+        : i18n.m.dishes.count(dishes.current.length)}
     </p>
 
     {#if visible.length === 0}
-      <p class="muted">No dishes match. Try a different search or category.</p>
+      <p class="muted">{i18n.m.dishes.noMatch}</p>
     {:else}
       <ul>
         {#each visible as dish (dish.id)}
           <li>
             <button class="dish" onclick={() => (editing = dish)}>
-              <span class="name">{dish.name}</span>
+              <span class="name" dir="auto">{dish.name}</span>
               <span class="meta">
-                <span class="cats" aria-label={dish.categories.map((c) => CATEGORY_LABELS[c].label).join(', ')}>
+                <span class="cats" aria-label={dish.categories.map((c) => i18n.m.categories[c]).join(', ')}>
                   {#each dish.categories as c (c)}
-                    <span title={CATEGORY_LABELS[c].label}>{CATEGORY_LABELS[c].icon}</span>
+                    <span title={i18n.m.categories[c]}>{CATEGORY_ICONS[c]}</span>
                   {/each}
                 </span>
-                <span class="muted">{cookedLabel(dish.lastCooked)}</span>
+                <span class="muted">{i18n.m.cooked(daysSinceCooked(dish.lastCooked))}</span>
               </span>
             </button>
           </li>

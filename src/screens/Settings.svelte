@@ -2,15 +2,26 @@
   import { onMount } from 'svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import Snackbar from '../components/Snackbar.svelte';
-  import { backupFilename, createBackup, isValidCooldown, MAX_COOLDOWN_DAYS, parseBackup, type BackupFile } from '../lib/backup';
+  import {
+    backupFilename,
+    createBackup,
+    isValidCooldown,
+    MAX_COOLDOWN_DAYS,
+    parseBackup,
+    type BackupError,
+    type BackupFile,
+  } from '../lib/backup';
   import { db, exportData, getSettings, replaceAllData, requestPersistentStorage, restoreDefaultDishes, saveSettings } from '../lib/db';
   import { DEFAULT_DISHES } from '../lib/defaultDishes';
+  import { catalogs, i18n } from '../lib/i18n/index.svelte';
   import { live } from '../lib/live.svelte';
+  import { LOCALES } from '../lib/locale';
   import { isInCooldown } from '../lib/picker';
   import { pwa } from '../lib/pwa.svelte';
 
   const settings = live(() => getSettings());
   const dishes = live(() => db.dishes.toArray());
+  const m = $derived(i18n.m.settings);
 
   // ---- Cooldown -------------------------------------------------------------
   // The input keeps its own text so the user can clear it and type; we only
@@ -20,9 +31,18 @@
   $effect(() => {
     if (settings.current && !cooldownTouched) cooldownText = String(settings.current.cooldownDays);
   });
+
+  /** Arabic keyboards often type Arabic-Indic digits (٠١٢…) or Persian ones (۰۱۲…); treat them as 0–9. */
+  function toLatinDigits(s: string): string {
+    return s.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+  }
+
   // type="text" + inputmode="numeric" (not type="number"): gives the phone number pad,
   // keeps the value a plain string, and avoids browsers silently accepting "1e2" or "-".
-  const cooldownValue = $derived(/^\d+$/.test(cooldownText.trim()) ? Number(cooldownText) : NaN);
+  const cooldownValue = $derived.by(() => {
+    const t = toLatinDigits(cooldownText.trim());
+    return /^\d+$/.test(t) ? Number(t) : NaN;
+  });
   const cooldownValid = $derived(isValidCooldown(cooldownValue));
   const inCooldownCount = $derived(
     dishes.current && cooldownValid
@@ -42,9 +62,10 @@
   }
 
   // ---- Feedback -------------------------------------------------------------
-  let snack = $state<{ id: number; message: string } | null>(null);
+  // Messages are stored as functions so they re-translate if you switch language while one is showing.
+  let snack = $state<{ id: number; message: () => string } | null>(null);
   let snackId = 0;
-  const notify = (message: string) => (snack = { id: ++snackId, message });
+  const notify = (message: () => string) => (snack = { id: ++snackId, message });
 
   // ---- Export ---------------------------------------------------------------
   async function doExport() {
@@ -57,13 +78,14 @@
     a.click();
     // Give the browser a moment to start the download before revoking.
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    notify(`Exported ${dishes.length} dishes`);
+    const n = dishes.length;
+    notify(() => i18n.m.settings.exported(n));
   }
 
   // ---- Import ---------------------------------------------------------------
   let fileInput: HTMLInputElement;
-  let importError = $state<string | null>(null);
-  let pendingImport = $state<{ fileName: string; data: BackupFile } | null>(null);
+  let importError = $state<{ file: string; error: BackupError } | null>(null);
+  let pendingImport = $state<{ fileName: string; data: BackupFile; skipped: string[] } | null>(null);
 
   async function onFileChosen() {
     const file = fileInput.files?.[0];
@@ -72,10 +94,10 @@
     importError = null;
     const result = parseBackup(await file.text());
     if (!result.ok) {
-      importError = `Couldn't import ${file.name}: ${result.error}`;
+      importError = { file: file.name, error: result.error };
       return;
     }
-    pendingImport = { fileName: file.name, data: result.data };
+    pendingImport = { fileName: file.name, data: result.data, skipped: result.skipped };
   }
 
   async function confirmImport() {
@@ -83,20 +105,17 @@
     const { dishes, settings } = pendingImport.data;
     await replaceAllData(dishes, settings);
     cooldownTouched = false; // show the imported cooldown
-    notify(`Imported ${dishes.length} dishes`);
-  }
-
-  function formatDate(iso: string): string {
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { dateStyle: 'medium' });
+    const n = dishes.length;
+    notify(() => i18n.m.settings.imported(n));
   }
 
   // ---- Restore defaults -----------------------------------------------------
   let confirmingRestore = $state(false);
+  const defaultCount = $derived(DEFAULT_DISHES[i18n.locale].length);
 
   async function confirmRestore() {
-    await restoreDefaultDishes();
-    notify('Default dishes restored');
+    await restoreDefaultDishes(i18n.locale);
+    notify(() => i18n.m.settings.restored);
   }
 
   // ---- Storage status -------------------------------------------------------
@@ -106,131 +125,153 @@
   });
   async function askPersist() {
     persisted = await requestPersistentStorage();
-    if (!persisted) notify('The browser declined — installing the app usually helps');
+    if (!persisted) notify(() => i18n.m.settings.persistDeclined);
   }
 </script>
 
 <section>
-  <h2>Settings</h2>
+  <h2>{m.title}</h2>
 
   <div class="group">
-    <h3>Cooldown</h3>
-    <p class="muted">After you cook a dish, it won't be suggested again for this many days.</p>
+    <h3>{m.languageTitle}</h3>
+    <div class="segmented" role="radiogroup" aria-label={m.languageTitle}>
+      {#each LOCALES as l (l)}
+        <!-- Each option is written in its own language, so you can find yours in either UI. -->
+        <button
+          type="button"
+          role="radio"
+          aria-checked={i18n.locale === l}
+          class:on={i18n.locale === l}
+          lang={l}
+          onclick={() => i18n.set(l)}
+        >
+          {catalogs[l].languageName}
+        </button>
+      {/each}
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>{m.cooldownTitle}</h3>
+    <p class="muted">{m.cooldownHelp}</p>
     <div class="stepper">
-      <button type="button" class="secondary" aria-label="Fewer days" onclick={() => setCooldown(cooldownValue - 1)} disabled={!cooldownValid || cooldownValue <= 0}>−</button>
+      <button
+        type="button"
+        class="secondary"
+        aria-label={m.fewer}
+        onclick={() => setCooldown(cooldownValue - 1)}
+        disabled={!cooldownValid || cooldownValue <= 0}>−</button
+      >
       <input
         type="text"
         inputmode="numeric"
-        pattern="[0-9]*"
         maxlength="3"
         autocomplete="off"
-        aria-label="Cooldown in days"
+        aria-label={m.cooldownInput}
         aria-invalid={!cooldownValid}
         bind:value={cooldownText}
         oninput={onCooldownInput}
       />
-      <button type="button" class="secondary" aria-label="More days" onclick={() => setCooldown(cooldownValue + 1)} disabled={!cooldownValid || cooldownValue >= MAX_COOLDOWN_DAYS}>+</button>
-      <span>days</span>
+      <button
+        type="button"
+        class="secondary"
+        aria-label={m.more}
+        onclick={() => setCooldown(cooldownValue + 1)}
+        disabled={!cooldownValid || cooldownValue >= MAX_COOLDOWN_DAYS}>+</button
+      >
+      <span>{m.daysUnit(cooldownValid ? cooldownValue : 0)}</span>
     </div>
     {#if !cooldownValid}
-      <p class="error">Enter a whole number from 0 to {MAX_COOLDOWN_DAYS}.</p>
+      <p class="error">{m.cooldownInvalid(MAX_COOLDOWN_DAYS)}</p>
     {:else}
       <p class="muted small">
-        {cooldownValue === 0 ? 'No cooldown — every dish can come up any time.' : `${inCooldownCount} ${inCooldownCount === 1 ? 'dish is' : 'dishes are'} in cooldown right now.`}
+        {cooldownValue === 0 ? m.cooldownOff : m.inCooldown(inCooldownCount)}
       </p>
     {/if}
   </div>
 
   <div class="group">
-    <h3>Backup</h3>
-    <p class="muted">
-      Your dishes are stored only in this browser. Clearing browsing data deletes them — export a backup now and then.
-    </p>
+    <h3>{m.backupTitle}</h3>
+    <p class="muted">{m.backupHelp}</p>
     <div class="buttons">
-      <button type="button" onclick={doExport}>Export to file</button>
-      <button type="button" class="secondary" onclick={() => fileInput.click()}>Import from file…</button>
+      <button type="button" onclick={doExport}>{m.export}</button>
+      <button type="button" class="secondary" onclick={() => fileInput.click()}>{m.import}</button>
     </div>
     <input bind:this={fileInput} type="file" accept=".json,application/json" hidden onchange={onFileChosen} />
     {#if importError}
-      <p class="error" role="alert">{importError}</p>
+      <p class="error" role="alert">{m.importFailed(importError.file, m.backupError(importError.error))}</p>
     {/if}
     {#if persisted === true}
-      <p class="muted small">✓ Storage is marked as persistent — the browser won't clear it on its own.</p>
+      <p class="muted small">{m.persisted}</p>
     {:else if persisted === false}
       <p class="muted small">
-        The browser may clear this data when it runs low on space.
-        <button type="button" class="link" onclick={askPersist}>Ask to keep it</button>
+        {m.notPersisted}
+        <button type="button" class="link" onclick={askPersist}>{m.askPersist}</button>
       </p>
     {/if}
   </div>
 
   <div class="group">
-    <h3>App</h3>
+    <h3>{m.appTitle}</h3>
     {#if pwa.installed}
-      <p class="muted">✓ Installed. Works offline — your dishes never leave this device.</p>
+      <p class="muted">{m.installed}</p>
     {:else if pwa.installEvent}
-      <p class="muted">Install Dinner Picker to open it from your home screen, full-screen and offline.</p>
+      <p class="muted">{m.installHelp}</p>
       <div class="buttons">
-        <button type="button" onclick={() => pwa.install()}>Install app</button>
+        <button type="button" onclick={() => pwa.install()}>{m.install}</button>
       </div>
     {:else if pwa.ios}
-      <p class="muted">
-        To install on iPhone or iPad: open this page in Safari, tap <strong>Share</strong>
-        <span aria-hidden="true">⎋</span>, then <strong>Add to Home Screen</strong>.
-      </p>
+      <p class="muted">{m.iosInstall}</p>
     {:else}
-      <p class="muted">
-        Works offline once loaded. To install, use your browser's menu (“Install app” or “Add to Home screen”).
-      </p>
+      <p class="muted">{m.otherInstall}</p>
     {/if}
   </div>
 
   <div class="group">
-    <h3>Reset</h3>
-    <p class="muted">Replace your dish list with the {DEFAULT_DISHES.length} default dishes. Your cooldown setting is kept.</p>
+    <h3>{m.resetTitle}</h3>
+    <p class="muted">{m.resetHelp(defaultCount)}</p>
     <div class="buttons">
-      <button type="button" class="danger-outline" onclick={() => (confirmingRestore = true)}>Restore default dishes…</button>
+      <button type="button" class="danger-outline" onclick={() => (confirmingRestore = true)}>{m.reset}</button>
     </div>
   </div>
 </section>
 
 {#if pendingImport}
   <ConfirmDialog
-    title="Replace all data?"
-    confirmLabel="Replace"
+    title={m.importTitle}
+    confirmLabel={m.importConfirm}
+    cancelLabel={m.cancel}
     danger
     onconfirm={confirmImport}
     oncancel={() => (pendingImport = null)}
   >
     <p>
-      Import <strong>{pendingImport.data.dishes.length} dishes</strong> from <strong>{pendingImport.fileName}</strong>{#if formatDate(pendingImport.data.exportedAt)}&nbsp;(exported {formatDate(pendingImport.data.exportedAt)}){/if}?
+      {m.importBody(pendingImport.data.dishes.length, pendingImport.fileName, i18n.formatDate(pendingImport.data.exportedAt))}
     </p>
-    <p>
-      This replaces your current {dishes.current?.length ?? ''} dishes and sets the cooldown to
-      {pendingImport.data.settings.cooldownDays} days. It can't be undone.
-    </p>
+    <p>{m.importReplaces(dishes.current?.length ?? 0, pendingImport.data.settings.cooldownDays)}</p>
+    {#if pendingImport.skipped.length > 0}
+      <p class="muted">{m.importSkipped(pendingImport.skipped)}</p>
+    {/if}
   </ConfirmDialog>
 {/if}
 
 {#if confirmingRestore}
   <ConfirmDialog
-    title="Restore default dishes?"
-    confirmLabel="Restore"
+    title={m.resetConfirmTitle}
+    confirmLabel={m.resetConfirm}
+    cancelLabel={m.cancel}
     danger
     onconfirm={confirmRestore}
     oncancel={() => (confirmingRestore = false)}
   >
-    <p>
-      Your {dishes.current?.length ?? ''} current dishes, including ones you added and all cooked dates, will be
-      replaced by the {DEFAULT_DISHES.length} defaults. It can't be undone.
-    </p>
-    <p class="muted">Tip: export a backup first.</p>
+    <p>{m.resetBody(dishes.current?.length ?? 0, defaultCount)}</p>
+    <p class="muted">{m.resetTip}</p>
   </ConfirmDialog>
 {/if}
 
 {#if snack}
   {#key snack.id}
-    <Snackbar message={snack.message} ondismiss={() => (snack = null)} duration={3000} />
+    <Snackbar message={snack.message()} ondismiss={() => (snack = null)} duration={3000} />
   {/key}
 {/if}
 
@@ -290,6 +331,29 @@
 
   .stepper input[aria-invalid='true'] {
     border-color: var(--danger);
+  }
+
+  .segmented {
+    display: inline-flex;
+    align-self: flex-start;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .segmented button {
+    background: transparent;
+    color: var(--text);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-weight: 500;
+  }
+
+  .segmented button.on {
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
   }
 
   .buttons {

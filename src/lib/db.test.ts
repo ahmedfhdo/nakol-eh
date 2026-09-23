@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import Dexie from 'dexie';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   addDish,
@@ -13,13 +14,14 @@ import {
   updateDish,
 } from './db';
 import { DEFAULT_DISHES } from './defaultDishes';
+import { normalize } from './dishes';
 import { CATEGORIES } from './types';
 
 // Each test gets its own database name so tests are independent.
 let n = 0;
 const opened: DinnerDB[] = [];
-function freshDb() {
-  const d = new DinnerDB(`test-${n++}`);
+function freshDb(locale: 'en' | 'ar' = 'en') {
+  const d = new DinnerDB(`test-${n++}`, () => locale);
   opened.push(d);
   return d;
 }
@@ -29,10 +31,14 @@ afterEach(async () => {
 });
 
 describe('default dish list', () => {
-  it('has 35 dishes, unique names, at least one valid category each', () => {
-    expect(DEFAULT_DISHES).toHaveLength(35);
-    expect(new Set(DEFAULT_DISHES.map((d) => d.name)).size).toBe(35);
-    for (const d of DEFAULT_DISHES) {
+  it.each([
+    ['en', 35],
+    ['ar', 48],
+  ] as const)('%s list has %i dishes, unique names, at least one valid category each', (locale, count) => {
+    const list = DEFAULT_DISHES[locale];
+    expect(list).toHaveLength(count);
+    expect(new Set(list.map((d) => normalize(d.name))).size).toBe(count);
+    for (const d of list) {
       expect(d.categories.length).toBeGreaterThan(0);
       for (const c of d.categories) expect(CATEGORIES).toContain(c);
     }
@@ -50,12 +56,12 @@ describe('database seeding', () => {
 
   it('does not re-seed on later launches, even if the user deleted everything', async () => {
     const name = `test-${n++}`;
-    const first = new DinnerDB(name);
+    const first = new DinnerDB(name, () => 'en');
     await first.dishes.clear();
     await first.dishes.add({ name: 'My Dish', categories: ['fish'], lastCooked: null });
     first.close();
 
-    const second = new DinnerDB(name);
+    const second = new DinnerDB(name, () => 'en');
     opened.push(second);
     const dishes = await second.dishes.toArray();
     expect(dishes.map((x) => x.name)).toEqual(['My Dish']);
@@ -134,7 +140,7 @@ describe('bulk operations', () => {
     await saveSettings({ cooldownDays: 3 }, d);
     await d.dishes.clear();
     await addDish({ name: 'Mine', categories: ['fish'] }, d);
-    await restoreDefaultDishes(d);
+    await restoreDefaultDishes('en', d);
     const all = await d.dishes.toArray();
     expect(all).toHaveLength(35);
     expect(all.every((x) => x.lastCooked === null)).toBe(true);
@@ -146,5 +152,66 @@ describe('bulk operations', () => {
     const { dishes, settings } = await exportData(d);
     expect(dishes).toHaveLength(35);
     expect(settings).toEqual({ cooldownDays: 7 });
+  });
+});
+
+describe('language-specific defaults', () => {
+  it('seeds the Arabic list when the app starts in Arabic', async () => {
+    const d = freshDb('ar');
+    const names = (await d.dishes.toArray()).map((x) => x.name);
+    expect(names).toHaveLength(48);
+    expect(names).toContain('ملوخية');
+  });
+
+  it('restoreDefaultDishes uses the requested language', async () => {
+    const d = freshDb('en');
+    await restoreDefaultDishes('ar', d);
+    expect(await d.dishes.count()).toBe(48);
+  });
+});
+
+describe('upgrade from schema v1 (with pork) to v2', () => {
+  it('converts, strips and deletes pork dishes in an existing database, keeping other data', async () => {
+    const name = `test-${n++}`;
+    // Build a real v1 database the way the old app version did.
+    const v1 = new Dexie(name);
+    v1.version(1).stores({ dishes: '++id, name, *categories, lastCooked', settings: 'id' });
+    await v1.table('dishes').bulkAdd([
+      { name: 'Schnitzel', categories: ['pork'], lastCooked: 111 },
+      { name: 'Gulasch', categories: ['beef', 'pork'], lastCooked: 222 },
+      { name: 'Linsensuppe', categories: ['vegetarian', 'pork'], lastCooked: null },
+      { name: 'Spanferkel', categories: ['pork'], lastCooked: null },
+      { name: 'Paella', categories: ['chicken', 'fish'], lastCooked: 333 },
+    ]);
+    await v1.table('settings').put({ id: 'app', cooldownDays: 4 });
+    v1.close();
+
+    // Opening with the new app runs the upgrade.
+    const d = new DinnerDB(name, () => 'en');
+    opened.push(d);
+    const all = await d.dishes.orderBy('name').toArray();
+    expect(all.map(({ name, categories, lastCooked }) => ({ name, categories, lastCooked }))).toEqual([
+      { name: 'Chicken Schnitzel', categories: ['chicken'], lastCooked: 111 },
+      { name: 'Gulasch', categories: ['beef'], lastCooked: 222 },
+      { name: 'Linsensuppe', categories: ['vegetarian'], lastCooked: null },
+      { name: 'Paella', categories: ['chicken', 'fish'], lastCooked: 333 },
+    ]);
+    expect(await d.dishes.where('categories').equals('pork').count()).toBe(0);
+    expect(await getSettings(d)).toEqual({ cooldownDays: 4 });
+  });
+
+  it("keeps the old name if the converted name is already taken", async () => {
+    const name = `test-${n++}`;
+    const v1 = new Dexie(name);
+    v1.version(1).stores({ dishes: '++id, name, *categories, lastCooked', settings: 'id' });
+    await v1.table('dishes').bulkAdd([
+      { name: 'Schnitzel', categories: ['pork'], lastCooked: null },
+      { name: 'Chicken Schnitzel', categories: ['chicken'], lastCooked: null },
+    ]);
+    v1.close();
+    const d = new DinnerDB(name, () => 'en');
+    opened.push(d);
+    const names = (await d.dishes.toArray()).map((x) => x.name).sort();
+    expect(names).toEqual(['Chicken Schnitzel', 'Schnitzel']);
   });
 });

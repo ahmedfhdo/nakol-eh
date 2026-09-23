@@ -4,9 +4,10 @@
   import Snackbar from '../components/Snackbar.svelte';
   import { db, getSettings, setLastCooked } from '../lib/db';
   import { live } from '../lib/live.svelte';
-  import { FALLBACK_NOTE, pick } from '../lib/picker';
+  import { i18n } from '../lib/i18n/index.svelte';
+  import { pick } from '../lib/picker';
   import { href } from '../lib/router.svelte';
-  import { CATEGORY_LABELS, DEFAULT_SETTINGS, type Category, type Dish } from '../lib/types';
+  import { CATEGORY_ICONS, DEFAULT_SETTINGS, type Category, type Dish } from '../lib/types';
 
   const dishes = live(() => db.dishes.toArray());
   const settings = live(() => getSettings());
@@ -62,20 +63,20 @@
 </script>
 
 <section>
-  <h2>What's for dinner?</h2>
+  <h2>{i18n.m.picker.title}</h2>
 
   <div class="filter">
-    <p class="muted">What do you have at home?</p>
-    <CategoryChips bind:selected label="Categories you have at home" />
+    <p class="muted">{i18n.m.picker.question}</p>
+    <CategoryChips bind:selected label={i18n.m.picker.chipsLabel} />
     <p class="hint muted">
       {selected.length === 0
-        ? 'No selection — any category.'
-        : `Any of: ${selected.map((c) => CATEGORY_LABELS[c].label).join(', ')}`}
+        ? i18n.m.picker.anyCategory
+        : i18n.m.picker.anyOf(selected.map((c) => i18n.m.categories[c]))}
     </p>
   </div>
 
   <button class="pick" onclick={doPick} disabled={!dishes.current}>
-    <span aria-hidden="true">🎲</span> Pick for me
+    <span aria-hidden="true">🎲</span> {i18n.m.picker.pick}
   </button>
 
   <div class="result" aria-live="polite">
@@ -83,30 +84,28 @@
       <div class="card empty" in:scale={{ start: 0.95, duration: 150 }}>
         <p class="big" aria-hidden="true">🤷</p>
         <p>
-          {dishes.current?.length === 0
-            ? "You don't have any dishes yet."
-            : 'No dishes in these categories yet.'}
+          {dishes.current?.length === 0 ? i18n.m.picker.noDishesAtAll : i18n.m.picker.noDishesInCategories}
         </p>
-        <a href={href('dishes')}>Add some dishes →</a>
+        <a href={href('dishes')}>{i18n.m.picker.addDishesLink}</a>
       </div>
     {:else if result.status === 'shown'}
       {#key pickCount}
         <div class="card" in:scale={{ start: 0.95, duration: 150 }}>
           {#if result.fallback}
-            <p class="note">{FALLBACK_NOTE}</p>
+            <p class="note">{i18n.m.picker.fallbackNote}</p>
           {/if}
           <p class="dish-name">{result.dish.name}</p>
           <p class="cats">
             {#each result.dish.categories as c (c)}
-              <span class="tag">{CATEGORY_LABELS[c].icon} {CATEGORY_LABELS[c].label}</span>
+              <span class="tag">{CATEGORY_ICONS[c]} {i18n.m.categories[c]}</span>
             {/each}
           </p>
           {#if result.cooked}
-            <p class="cooked">✓ Enjoy your meal!</p>
+            <p class="cooked">{i18n.m.picker.enjoy}</p>
           {:else}
             <div class="actions">
-              <button onclick={cook}>Cook this</button>
-              <button class="secondary" onclick={doPick}>Another one</button>
+              <button onclick={cook}>{i18n.m.picker.cook}</button>
+              <button class="secondary" onclick={doPick}>{i18n.m.picker.another}</button>
             </div>
           {/if}
         </div>
@@ -118,8 +117,8 @@
 {#if snack}
   {#key snack.id}
     <Snackbar
-      message={`Marked "${snack.name}" as cooked`}
-      actionLabel="Undo"
+      message={i18n.m.picker.cookedSnack(snack.name)}
+      actionLabel={i18n.m.picker.undo}
       onaction={undo}
       ondismiss={() => (snack = null)}
     />
