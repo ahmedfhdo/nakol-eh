@@ -19,6 +19,7 @@
   // The parent re-creates this component (via {#key}) for each new message,
   // so a single timer per instance is enough.
   onMount(() => {
+    if (duration <= 0) return; // 0 = stay until the user acts
     const timer = setTimeout(() => ondismiss(), duration);
     return () => clearTimeout(timer);
   });

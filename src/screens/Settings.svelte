@@ -7,6 +7,7 @@
   import { DEFAULT_DISHES } from '../lib/defaultDishes';
   import { live } from '../lib/live.svelte';
   import { isInCooldown } from '../lib/picker';
+  import { pwa } from '../lib/pwa.svelte';
 
   const settings = live(() => getSettings());
   const dishes = live(() => db.dishes.toArray());
@@ -159,6 +160,27 @@
       <p class="muted small">
         The browser may clear this data when it runs low on space.
         <button type="button" class="link" onclick={askPersist}>Ask to keep it</button>
+      </p>
+    {/if}
+  </div>
+
+  <div class="group">
+    <h3>App</h3>
+    {#if pwa.installed}
+      <p class="muted">✓ Installed. Works offline — your dishes never leave this device.</p>
+    {:else if pwa.installEvent}
+      <p class="muted">Install Dinner Picker to open it from your home screen, full-screen and offline.</p>
+      <div class="buttons">
+        <button type="button" onclick={() => pwa.install()}>Install app</button>
+      </div>
+    {:else if pwa.ios}
+      <p class="muted">
+        To install on iPhone or iPad: open this page in Safari, tap <strong>Share</strong>
+        <span aria-hidden="true">⎋</span>, then <strong>Add to Home Screen</strong>.
+      </p>
+    {:else}
+      <p class="muted">
+        Works offline once loaded. To install, use your browser's menu (“Install app” or “Add to Home screen”).
       </p>
     {/if}
   </div>
