@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { DEFAULT_DISHES } from './defaultDishes';
-import { DEFAULT_SETTINGS, type Dish, type Settings } from './types';
+import { normalizeCategories } from './dishes';
+import { DEFAULT_SETTINGS, type Category, type Dish, type Settings } from './types';
 
 // Settings are a single row. Keeping them in the same IndexedDB database (instead of
 // localStorage) means export/import and "clear site data" treat dishes and settings alike.
@@ -64,4 +65,39 @@ export async function requestPersistentStorage(): Promise<boolean> {
   if (!navigator.storage?.persist) return false;
   if (await navigator.storage.persisted()) return true;
   return navigator.storage.persist();
+}
+
+// ---- Dish mutations -------------------------------------------------------
+// Validation lives in dishes.ts (validateDish); these assume valid input and
+// only normalize it, so the DB never holds untrimmed names or unordered categories.
+
+export async function addDish(
+  input: { name: string; categories: Category[] },
+  database: DinnerDB = db,
+): Promise<number> {
+  const id = await database.dishes.add({
+    name: input.name.trim(),
+    categories: normalizeCategories(input.categories),
+    lastCooked: null,
+  });
+  return id as number;
+}
+
+export async function updateDish(
+  id: number,
+  changes: { name: string; categories: Category[] },
+  database: DinnerDB = db,
+): Promise<void> {
+  await database.dishes.update(id, {
+    name: changes.name.trim(),
+    categories: normalizeCategories(changes.categories),
+  });
+}
+
+export async function deleteDish(id: number, database: DinnerDB = db): Promise<void> {
+  await database.dishes.delete(id);
+}
+
+export async function setLastCooked(id: number, lastCooked: number | null, database: DinnerDB = db): Promise<void> {
+  await database.dishes.update(id, { lastCooked });
 }

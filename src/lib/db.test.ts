@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DinnerDB, getSettings, saveSettings } from './db';
+import { addDish, deleteDish, DinnerDB, getSettings, saveSettings, setLastCooked, updateDish } from './db';
 import { DEFAULT_DISHES } from './defaultDishes';
 import { CATEGORIES } from './types';
 
@@ -64,5 +64,37 @@ describe('settings', () => {
     const d = freshDb();
     await saveSettings({ cooldownDays: 3 }, d);
     expect(await getSettings(d)).toEqual({ cooldownDays: 3 });
+  });
+});
+
+describe('dish mutations', () => {
+  it('addDish trims the name, orders categories and starts never-cooked', async () => {
+    const d = freshDb();
+    const id = await addDish({ name: '  Soup  ', categories: ['vegetarian', 'beef'] }, d);
+    expect(await d.dishes.get(id)).toEqual({ id, name: 'Soup', categories: ['beef', 'vegetarian'], lastCooked: null });
+  });
+
+  it('updateDish changes name/categories but keeps lastCooked', async () => {
+    const d = freshDb();
+    const id = await addDish({ name: 'Soup', categories: ['vegetarian'] }, d);
+    await setLastCooked(id, 1234, d);
+    await updateDish(id, { name: 'Tomato Soup', categories: ['vegetarian'] }, d);
+    expect(await d.dishes.get(id)).toMatchObject({ name: 'Tomato Soup', lastCooked: 1234 });
+  });
+
+  it('setLastCooked(null) clears the cooked date', async () => {
+    const d = freshDb();
+    const id = await addDish({ name: 'Soup', categories: ['vegetarian'] }, d);
+    await setLastCooked(id, 1234, d);
+    await setLastCooked(id, null, d);
+    expect((await d.dishes.get(id))?.lastCooked).toBeNull();
+  });
+
+  it('deleteDish removes only that dish', async () => {
+    const d = freshDb();
+    const id = await addDish({ name: 'Soup', categories: ['vegetarian'] }, d);
+    await deleteDish(id, d);
+    expect(await d.dishes.get(id)).toBeUndefined();
+    expect(await d.dishes.count()).toBe(35);
   });
 });

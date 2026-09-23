@@ -16,3 +16,11 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   cooldownDays: 7,
 };
+
+export const CATEGORY_LABELS: Record<Category, { label: string; icon: string }> = {
+  beef: { label: 'Beef', icon: '🐄' },
+  pork: { label: 'Pork', icon: '🐖' },
+  chicken: { label: 'Chicken', icon: '🐔' },
+  fish: { label: 'Fish', icon: '🐟' },
+  vegetarian: { label: 'Vegetarian', icon: '🥦' },
+};
