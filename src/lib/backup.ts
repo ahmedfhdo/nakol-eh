@@ -4,6 +4,8 @@ import { normalize, normalizeCategories, MAX_NAME_LENGTH } from './dishes';
 import { removePork } from './removePork';
 import { CATEGORIES, DEFAULT_SETTINGS, type Dish, type Settings } from './types';
 
+// Internal marker inside backup files. Deliberately NOT renamed with the app
+// ("Nakol Eh"): changing it would make every existing backup unimportable.
 export const BACKUP_APP_ID = 'dinner-picker';
 export const BACKUP_VERSION = 1;
 export const MAX_COOLDOWN_DAYS = 365;
@@ -35,7 +37,7 @@ export function createBackup(dishes: readonly Dish[], settings: Settings, now: n
 export function backupFilename(now: number = Date.now()): string {
   const d = new Date(now);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `dinner-picker-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+  return `nakol-eh-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
 }
 
 export function isValidCooldown(n: unknown): n is number {

@@ -11,7 +11,7 @@ export const en = {
   dir: 'ltr' as 'ltr' | 'rtl',
   languageName: 'English',
 
-  appTitle: 'Dinner Picker',
+  appTitle: 'Nakol Eh',
 
   nav: {
     label: 'Main',
@@ -126,7 +126,7 @@ export const en = {
 
     appTitle: 'App',
     installed: '✓ Installed. Works offline — your dishes never leave this device.',
-    installHelp: 'Install Dinner Picker to open it from your home screen, full-screen and offline.',
+    installHelp: 'Install Nakol Eh to open it from your home screen, full-screen and offline.',
     install: 'Install app',
     iosInstall: 'To install on iPhone or iPad: open this page in Safari, tap Share, then “Add to Home Screen”.',
     otherInstall: 'Works offline once loaded. To install, use your browser’s menu (“Install app” or “Add to Home screen”).',
@@ -147,7 +147,7 @@ export const en = {
         case 'invalidJson':
           return "this file isn't valid JSON.";
         case 'notOurFile':
-          return "this doesn't look like a Dinner Picker export.";
+          return "this doesn't look like a Nakol Eh backup.";
         case 'newerVersion':
           return 'it was made by a newer version of the app.';
         case 'noDishList':

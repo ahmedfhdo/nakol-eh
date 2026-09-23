@@ -15,8 +15,8 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
         id: './',
-        name: 'Dinner Picker',
-        short_name: 'Dinner',
+        name: 'Nakol Eh — ناكل ايه',
+        short_name: 'Nakol Eh',
         description: 'Pick a random dinner from what you have at home.',
         lang: 'en',
         start_url: './',

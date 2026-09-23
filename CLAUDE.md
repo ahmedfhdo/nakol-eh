@@ -1,4 +1,7 @@
-# Dinner Picker — Project Spec (v1)
+# Nakol Eh (ناكل ايه) — Project Spec (v1)
+
+App name: **Nakol Eh** in English, **ناكل ايه** in Arabic. Internal ids (IndexedDB name,
+backup `app` marker, localStorage key) stay `dinner-picker` so existing data and backups keep working.
 
 ## What this is
 A small, offline-first Progressive Web App that answers "what should I make for dinner?"

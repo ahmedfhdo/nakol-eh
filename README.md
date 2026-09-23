@@ -1,4 +1,4 @@
-# Dinner Picker
+# Nakol Eh (ناكل ايه)
 
 Offline-first PWA that picks a random dinner from the protein categories you have at home.
 See `CLAUDE.md` for the full spec and build order.

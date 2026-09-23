@@ -19,6 +19,8 @@ export class DinnerDB extends Dexie {
    * @param seedLocale which default list to seed on first launch. A function, so it's
    *   read at creation time (and tests can inject it).
    */
+  // The DB name keeps the old app name on purpose: renaming it would open a new,
+  // empty database and strand everyone's existing dishes in the old one.
   constructor(name = 'dinner-picker', seedLocale: () => Locale = () => detectInitialLocale()) {
     super(name);
 

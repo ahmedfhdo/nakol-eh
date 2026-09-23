@@ -33,7 +33,7 @@ export const ar: Messages = {
   dir: 'rtl',
   languageName: 'العربي (مصري)',
 
-  appTitle: 'ناكل إيه؟',
+  appTitle: 'ناكل ايه',
 
   nav: {
     label: 'التنقل',
@@ -177,7 +177,7 @@ export const ar: Messages = {
         case 'invalidJson':
           return 'الملف ده مش JSON سليم.';
         case 'notOurFile':
-          return 'الملف ده مش نسخة من «ناكل إيه؟».';
+          return 'الملف ده مش نسخة من «ناكل ايه».';
         case 'newerVersion':
           return 'الملف ده من نسخة أحدث من التطبيق.';
         case 'noDishList':

@@ -102,7 +102,7 @@ describe('importing a backup made before pork was removed', () => {
 
 describe('helpers', () => {
   it('backupFilename uses the local date', () => {
-    expect(backupFilename(new Date(2026, 0, 5, 23, 0).getTime())).toBe('dinner-picker-2026-01-05.json');
+    expect(backupFilename(new Date(2026, 0, 5, 23, 0).getTime())).toBe('nakol-eh-2026-01-05.json');
   });
 
   it('isValidCooldown accepts whole numbers 0–365', () => {
