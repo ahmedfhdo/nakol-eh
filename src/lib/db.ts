@@ -101,3 +101,34 @@ export async function deleteDish(id: number, database: DinnerDB = db): Promise<v
 export async function setLastCooked(id: number, lastCooked: number | null, database: DinnerDB = db): Promise<void> {
   await database.dishes.update(id, { lastCooked });
 }
+
+// ---- Bulk operations (Settings screen) --------------------------------------
+// Both run in ONE transaction: if anything fails halfway, IndexedDB rolls back
+// and the user keeps their old data instead of an empty or half-written list.
+
+export async function exportData(database: DinnerDB = db): Promise<{ dishes: Dish[]; settings: Settings }> {
+  return database.transaction('r', database.dishes, database.settings, async () => ({
+    dishes: await database.dishes.toArray(),
+    settings: await getSettings(database),
+  }));
+}
+
+export async function replaceAllData(
+  dishes: Omit<Dish, 'id'>[],
+  settings: Settings,
+  database: DinnerDB = db,
+): Promise<void> {
+  await database.transaction('rw', database.dishes, database.settings, async () => {
+    await database.dishes.clear();
+    await database.dishes.bulkAdd(dishes.map((d) => ({ ...d, categories: [...d.categories] })));
+    await database.settings.put({ id: 'app', ...settings });
+  });
+}
+
+/** Replace all dishes with the defaults. Settings (cooldown) are kept. */
+export async function restoreDefaultDishes(database: DinnerDB = db): Promise<void> {
+  await database.transaction('rw', database.dishes, async () => {
+    await database.dishes.clear();
+    await database.dishes.bulkAdd(defaultDishRows());
+  });
+}

@@ -1,6 +1,17 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
-import { addDish, deleteDish, DinnerDB, getSettings, saveSettings, setLastCooked, updateDish } from './db';
+import {
+  addDish,
+  deleteDish,
+  DinnerDB,
+  exportData,
+  getSettings,
+  replaceAllData,
+  restoreDefaultDishes,
+  saveSettings,
+  setLastCooked,
+  updateDish,
+} from './db';
 import { DEFAULT_DISHES } from './defaultDishes';
 import { CATEGORIES } from './types';
 
@@ -96,5 +107,44 @@ describe('dish mutations', () => {
     await deleteDish(id, d);
     expect(await d.dishes.get(id)).toBeUndefined();
     expect(await d.dishes.count()).toBe(35);
+  });
+});
+
+describe('bulk operations', () => {
+  it('replaceAllData replaces dishes (fresh ids) and settings', async () => {
+    const d = freshDb();
+    await replaceAllData([{ name: 'Only Dish', categories: ['fish'], lastCooked: 5 }], { cooldownDays: 2 }, d);
+    const all = await d.dishes.toArray();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ name: 'Only Dish', lastCooked: 5 });
+    expect(await getSettings(d)).toEqual({ cooldownDays: 2 });
+  });
+
+  it('replaceAllData rolls back completely if the write fails', async () => {
+    const d = freshDb();
+    // A dish that IndexedDB cannot store (functions are not cloneable) fails mid-transaction.
+    const bad = [{ name: 'Ok', categories: ['fish'], lastCooked: null }, { name: 'Bad', categories: ['fish'], lastCooked: null, x: () => 1 }];
+    await expect(replaceAllData(bad as never, { cooldownDays: 1 }, d)).rejects.toThrow();
+    expect(await d.dishes.count()).toBe(35);
+    expect(await getSettings(d)).toEqual({ cooldownDays: 7 });
+  });
+
+  it('restoreDefaultDishes resets dishes but keeps settings', async () => {
+    const d = freshDb();
+    await saveSettings({ cooldownDays: 3 }, d);
+    await d.dishes.clear();
+    await addDish({ name: 'Mine', categories: ['fish'] }, d);
+    await restoreDefaultDishes(d);
+    const all = await d.dishes.toArray();
+    expect(all).toHaveLength(35);
+    expect(all.every((x) => x.lastCooked === null)).toBe(true);
+    expect(await getSettings(d)).toEqual({ cooldownDays: 3 });
+  });
+
+  it('exportData returns dishes and settings', async () => {
+    const d = freshDb();
+    const { dishes, settings } = await exportData(d);
+    expect(dishes).toHaveLength(35);
+    expect(settings).toEqual({ cooldownDays: 7 });
   });
 });
