@@ -1,11 +1,12 @@
 <script lang="ts">
   import CategoryChips from '../components/CategoryChips.svelte';
+  import CategoryTag from '../components/CategoryTag.svelte';
   import DishEditor from '../components/DishEditor.svelte';
   import { db } from '../lib/db';
   import { daysSinceCooked, filterDishes } from '../lib/dishes';
   import { i18n } from '../lib/i18n/index.svelte';
   import { live } from '../lib/live.svelte';
-  import { CATEGORY_ICONS, type Category, type Dish } from '../lib/types';
+  import type { Category, Dish } from '../lib/types';
 
   // Load everything and filter in memory: a personal dish list is tens to
   // hundreds of rows, so this is instant and keeps the filter logic pure/testable.
@@ -61,9 +62,9 @@
             <button class="dish" onclick={() => (editing = dish)}>
               <span class="name" dir="auto">{dish.name}</span>
               <span class="meta">
-                <span class="cats" aria-label={dish.categories.map((c) => i18n.m.categories[c]).join(', ')}>
+                <span class="cats">
                   {#each dish.categories as c (c)}
-                    <span title={i18n.m.categories[c]}>{CATEGORY_ICONS[c]}</span>
+                    <CategoryTag category={c} />
                   {/each}
                 </span>
                 <span class="muted">{i18n.m.cooked(daysSinceCooked(dish.lastCooked))}</span>
@@ -146,13 +147,16 @@
 
   .meta {
     display: flex;
-    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
     font-size: 0.85rem;
   }
 
   .cats {
     display: inline-flex;
-    gap: 2px;
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
   .empty {

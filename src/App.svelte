@@ -14,7 +14,11 @@
 
 <div class="app">
   <header>
-    <h1><img src="favicon.svg" alt="" width="24" height="24" /> {i18n.m.appTitle}</h1>
+    <!-- The wordmark is bilingual on purpose (like a shop sign), whatever the UI language. -->
+    <h1 aria-label={i18n.m.appTitle}>
+      <span class="wordmark" lang="ar" dir="rtl" aria-hidden="true">ناكل ايه؟</span>
+      <span class="latin" lang="en" aria-hidden="true">Nakol Eh</span>
+    </h1>
     <div class="header-right">
       {#if pwa.installEvent && !pwa.installed}
         <button class="install" onclick={() => pwa.install()}>{i18n.m.pwa.install}</button>
@@ -25,6 +29,7 @@
       <div class="nav-desktop"><NavBar /></div>
     </div>
   </header>
+  <div class="stripe" aria-hidden="true"></div>
 
   <main>
     {#if router.current === 'picker'}
@@ -64,18 +69,43 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 12px 16px;
-    padding-top: calc(12px + env(safe-area-inset-top));
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    background: var(--brand-navy);
+    color: var(--on-brand);
   }
 
   h1 {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 1.2rem;
+    flex-direction: column;
+    align-items: flex-start;
     margin: 0;
+    line-height: 1.1;
+  }
+
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 2rem;
+    color: var(--brand-saffron);
+  }
+
+  .latin {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+  }
+
+  /* Red / saffron / navy awning stripe under the header. */
+  .stripe {
+    height: 10px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--brand-red) 0 18px,
+      var(--brand-saffron) 18px 36px,
+      var(--brand-navy) 36px 54px
+    );
   }
 
   .header-right {
@@ -91,8 +121,24 @@
     font-size: 0.9rem;
   }
 
+  .install {
+    background: var(--brand-saffron);
+    color: var(--on-saffron);
+  }
+
   .lang {
     font-weight: 500;
+    color: var(--on-brand);
+    border-color: color-mix(in srgb, var(--on-brand) 55%, transparent);
+  }
+
+  /* Desktop tabs sit on the navy header. */
+  .nav-desktop :global(a) {
+    color: var(--on-brand);
+  }
+  .nav-desktop :global(a.active) {
+    background: var(--brand-saffron);
+    color: var(--on-saffron);
   }
 
   main {

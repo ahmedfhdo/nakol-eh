@@ -7,49 +7,9 @@ export interface DefaultDish {
 }
 
 // Seed data. Used on first launch and by "Restore default dishes",
-// picking the list for the language the app is in at that moment.
+// One list for both languages for now (the English list was removed;
+// it's in git history if we want it back).
 
-const EN: DefaultDish[] = [
-  { name: 'Chicken Schnitzel', categories: ['chicken'] },
-  { name: 'Rouladen', categories: ['beef'] },
-  { name: 'Gulasch', categories: ['beef'] },
-  { name: 'Frikadellen mit Kartoffelsalat', categories: ['beef'] },
-  { name: 'Rindercurrywurst mit Pommes', categories: ['beef'] },
-  { name: 'Sauerbraten', categories: ['beef'] },
-  { name: 'Königsberger Klopse', categories: ['beef'] },
-  { name: 'Chili con Carne', categories: ['beef', 'vegetarian'] },
-  { name: 'Spaghetti Bolognese', categories: ['beef', 'vegetarian'] },
-  { name: 'Lasagne', categories: ['beef', 'vegetarian'] },
-  { name: 'Burger', categories: ['beef', 'chicken', 'vegetarian'] },
-  { name: 'Tacos', categories: ['beef', 'chicken', 'vegetarian'] },
-  { name: 'Pulled Beef Sandwich', categories: ['beef'] },
-  { name: 'Chicken Stir-Fry with Rice', categories: ['chicken'] },
-  { name: 'Hähnchen-Curry', categories: ['chicken', 'vegetarian'] },
-  { name: 'Chicken Fajitas', categories: ['chicken'] },
-  { name: 'Chicken Teriyaki with Rice', categories: ['chicken'] },
-  { name: 'Roast Chicken with Vegetables', categories: ['chicken'] },
-  { name: 'Chicken Caesar Salad', categories: ['chicken'] },
-  { name: 'Paella', categories: ['chicken', 'fish'] },
-  { name: 'Fish and Chips', categories: ['fish'] },
-  { name: 'Lachs mit Ofengemüse', categories: ['fish'] },
-  { name: 'Fischstäbchen mit Kartoffelpüree', categories: ['fish'] },
-  { name: 'Shrimp Pasta', categories: ['fish'] },
-  { name: 'Tuna Pasta Bake', categories: ['fish'] },
-  { name: 'Fried Rice', categories: ['chicken', 'fish', 'vegetarian'] },
-  { name: 'Käsespätzle', categories: ['vegetarian'] },
-  { name: 'Pfannkuchen', categories: ['vegetarian'] },
-  { name: 'Gemüse-Risotto', categories: ['vegetarian'] },
-  { name: 'Shakshuka', categories: ['vegetarian'] },
-  { name: 'Pasta Pesto', categories: ['vegetarian'] },
-  { name: 'Linsensuppe', categories: ['vegetarian'] },
-  { name: 'Vegetable Stir-Fry with Noodles', categories: ['chicken', 'vegetarian'] },
-  { name: 'Pizza', categories: ['vegetarian'] },
-  { name: 'Omelette with Salad', categories: ['vegetarian'] },
-];
-
-// Egyptian list, names exactly as Bob wrote them.
-// Categories = the protein you need at home. Stews (طبيخ) and mahshi are
-// commonly made with meat or without, so they carry both beef and vegetarian.
 const AR: DefaultDish[] = [
   { name: 'محشي كرنب', categories: ['beef', 'vegetarian'] },
   { name: 'محشي بتنجان', categories: ['beef', 'vegetarian'] },
@@ -101,4 +61,4 @@ const AR: DefaultDish[] = [
   { name: 'ستريبس', categories: ['chicken'] },
 ];
 
-export const DEFAULT_DISHES: Record<Locale, DefaultDish[]> = { en: EN, ar: AR };
+export const DEFAULT_DISHES: Record<Locale, DefaultDish[]> = { en: AR, ar: AR };

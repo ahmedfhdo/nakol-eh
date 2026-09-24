@@ -67,6 +67,7 @@ export const ar: Messages = {
     pick: 'اختارلي',
     cook: 'هعملها',
     another: 'غيرها',
+    special: 'أكلة النهارده',
     enjoy: '✓ بالهنا والشفا!',
     fallbackNote: 'كل الأكلات دي اتعملت قريب — دي اللي بقالها أطول وقت.',
     noDishesAtAll: 'لسه ما عندكش أكلات.',

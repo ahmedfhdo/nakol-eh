@@ -24,7 +24,7 @@ export const en = {
     beef: 'Beef',
     chicken: 'Chicken',
     fish: 'Fish',
-    vegetarian: 'Vegetarian',
+    vegetarian: 'Veggie',
   } satisfies Record<Category, string>,
 
   /** "Cooked 3 days ago". `days` null = never. */
@@ -40,6 +40,7 @@ export const en = {
     pick: 'Pick for me',
     cook: 'Cook this',
     another: 'Another one',
+    special: "Tonight's special",
     enjoy: '✓ Enjoy your meal!',
     fallbackNote: "Everything here was cooked recently — here's the one from longest ago.",
     noDishesAtAll: "You don't have any dishes yet.",

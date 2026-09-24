@@ -23,8 +23,8 @@ export default defineConfig({
         scope: './',
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#f7f5f2',
-        theme_color: '#ffffff',
+        background_color: '#f7ebd3',
+        theme_color: '#1d3a8a',
         icons: [
           { src: 'icons/pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/pwa-512.png', sizes: '512x512', type: 'image/png' },
@@ -38,6 +38,25 @@ export default defineConfig({
         // Hash routing means every screen is index.html, so this is the only navigation route.
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
+        // Google Fonts live on another origin, so they can't be precached. Cache them
+        // at runtime instead: the stylesheet is refreshed in the background, the font
+        // files (immutable, versioned URLs) are served from cache for a year.
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'google-fonts-css' },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-files',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

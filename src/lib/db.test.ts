@@ -32,7 +32,7 @@ afterEach(async () => {
 
 describe('default dish list', () => {
   it.each([
-    ['en', 35],
+    ['en', 48], // English uses the Egyptian list for now
     ['ar', 48],
   ] as const)('%s list has %i dishes, unique names, at least one valid category each', (locale, count) => {
     const list = DEFAULT_DISHES[locale];
@@ -49,7 +49,7 @@ describe('database seeding', () => {
   it('seeds default dishes and settings on first open', async () => {
     const d = freshDb();
     const dishes = await d.dishes.toArray();
-    expect(dishes).toHaveLength(35);
+    expect(dishes).toHaveLength(48);
     expect(dishes.every((x) => x.lastCooked === null && typeof x.id === 'number')).toBe(true);
     expect(await getSettings(d)).toEqual({ cooldownDays: 7 });
   });
@@ -70,9 +70,8 @@ describe('database seeding', () => {
   it('multi-entry index finds dishes by any of their categories', async () => {
     const d = freshDb();
     const fish = await d.dishes.where('categories').equals('fish').toArray();
-    // Paella, Fish and Chips, Lachs, Fischstäbchen, Shrimp Pasta, Tuna Pasta Bake, Fried Rice
     expect(fish).toHaveLength(7);
-    expect(fish.map((x) => x.name)).toContain('Fried Rice');
+    expect(fish.map((x) => x.name)).toContain('رنجة');
   });
 });
 
@@ -112,7 +111,7 @@ describe('dish mutations', () => {
     const id = await addDish({ name: 'Soup', categories: ['vegetarian'] }, d);
     await deleteDish(id, d);
     expect(await d.dishes.get(id)).toBeUndefined();
-    expect(await d.dishes.count()).toBe(35);
+    expect(await d.dishes.count()).toBe(48);
   });
 });
 
@@ -131,7 +130,7 @@ describe('bulk operations', () => {
     // A dish that IndexedDB cannot store (functions are not cloneable) fails mid-transaction.
     const bad = [{ name: 'Ok', categories: ['fish'], lastCooked: null }, { name: 'Bad', categories: ['fish'], lastCooked: null, x: () => 1 }];
     await expect(replaceAllData(bad as never, { cooldownDays: 1 }, d)).rejects.toThrow();
-    expect(await d.dishes.count()).toBe(35);
+    expect(await d.dishes.count()).toBe(48);
     expect(await getSettings(d)).toEqual({ cooldownDays: 7 });
   });
 
@@ -142,7 +141,7 @@ describe('bulk operations', () => {
     await addDish({ name: 'Mine', categories: ['fish'] }, d);
     await restoreDefaultDishes('en', d);
     const all = await d.dishes.toArray();
-    expect(all).toHaveLength(35);
+    expect(all).toHaveLength(48);
     expect(all.every((x) => x.lastCooked === null)).toBe(true);
     expect(await getSettings(d)).toEqual({ cooldownDays: 3 });
   });
@@ -150,7 +149,7 @@ describe('bulk operations', () => {
   it('exportData returns dishes and settings', async () => {
     const d = freshDb();
     const { dishes, settings } = await exportData(d);
-    expect(dishes).toHaveLength(35);
+    expect(dishes).toHaveLength(48);
     expect(settings).toEqual({ cooldownDays: 7 });
   });
 });

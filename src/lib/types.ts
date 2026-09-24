@@ -16,11 +16,3 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   cooldownDays: 7,
 };
-
-// Labels are translated (see i18n/); icons are the same in every language.
-export const CATEGORY_ICONS: Record<Category, string> = {
-  beef: '🐄',
-  chicken: '🐔',
-  fish: '🐟',
-  vegetarian: '🥦',
-};
